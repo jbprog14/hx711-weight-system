@@ -7,7 +7,7 @@
 #define WIFI_SSID "archer_2.4G"
 #define WIFI_PASSWORD "05132000"
 #define FIREBASE_URL "https://firext-system-default-rtdb.asia-southeast1.firebasedatabase.app/"
-#define FIREBASE_DOCK_ID "-ONINaRvlfmil9bk230u"
+#define FIREBASE_DOCK_ID "-OO1J_dAMA6iIjvvdy4w" // 2
 #define FIREBASE_DOCKS_PATH "docks"
 
 // HX711 Configuration
@@ -16,6 +16,9 @@
 #define CALIBRATION_FACTOR -1000.0
 #define READINGS_PER_SAMPLE 5
 #define DELAY_BETWEEN_READINGS 100  // milliseconds
+
+// Weight Threshold for LED State
+#define WEIGHT_THRESHOLD 3.2  // kg
 
 HX711 scale;
 Firebase fb(FIREBASE_URL);
@@ -41,6 +44,21 @@ bool checkDockExists() {
   }
 }
 
+// Function to update LED state based on weight threshold
+void updateLedState(float weight_kg) {
+  // LED state logic: true if weight < 3.2kg, false if weight >= 3.2kg
+  bool led_state = (weight_kg < WEIGHT_THRESHOLD);
+  
+  String path = String(FIREBASE_DOCKS_PATH) + "/" + String(FIREBASE_DOCK_ID) + "/led_state";
+  
+  if (fb.setBool(path, led_state)) {
+    Serial.print("LED state updated to: ");
+    Serial.println(led_state ? "ON" : "OFF");
+  } else {
+    Serial.println("Failed to update LED state");
+  }
+}
+
 // Function to send weight data to Firebase
 void sendWeightToFirebase(float weight_kg) {
   // First verify if we haven't checked yet
@@ -57,6 +75,9 @@ void sendWeightToFirebase(float weight_kg) {
   
   if (fb.setFloat(path, weight_kg)) {
     Serial.println("Weight data sent to Firebase");
+    
+    // Update LED state based on weight threshold
+    updateLedState(weight_kg);
   } else {
     Serial.println("Failed to send data to Firebase");
   }
@@ -90,7 +111,7 @@ void loop() {
   // Read scale if ready
   if (scale.is_ready()) {
     float weight_g = scale.get_units(READINGS_PER_SAMPLE);
-    float weight_kg = weight_g / 1000.0;  // Convert to kilograms
+    float weight_kg = weight_g / 100.0;  // Convert to kilograms
     
     // Display with precision
     Serial.print("Weight: ");
@@ -129,7 +150,7 @@ void calibrationMode() {
   while (!exit_cal) {
     scale.set_scale(calibration_factor);
     float weight_g = scale.get_units(10);
-    float weight_kg = weight_g / 1000.0;
+    float weight_kg = weight_g / 100.0;
     
     Serial.print("Reading: ");
     Serial.print(weight_kg, 3);

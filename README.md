@@ -1,6 +1,6 @@
 # HX711 Weight Scale with Firebase Integration
 
-This project implements a digital weight scale using an ESP32 microcontroller, HX711 load cell amplifier, and Firebase for cloud storage and monitoring. The system reads weight data, converts it to kilograms, and sends it to a Firebase Realtime Database.
+This project implements a digital weight scale using an ESP32 microcontroller, HX711 load cell amplifier, and Firebase for cloud storage and monitoring. The system reads weight data, converts it to kilograms, and sends it to a Firebase Realtime Database. It also controls an LED state in Firebase based on weight thresholds.
 
 ## Hardware Requirements
 
@@ -36,7 +36,7 @@ This project implements a digital weight scale using an ESP32 microcontroller, H
 #define WIFI_SSID "archer_2.4G"
 #define WIFI_PASSWORD "05132000"
 #define FIREBASE_URL "https://firext-system-default-rtdb.asia-southeast1.firebasedatabase.app/"
-#define FIREBASE_DOCK_ID "-ONINaRvlfmil9bk230u"
+#define FIREBASE_DOCK_ID "-OO0yqjgLrHVxyT2tr0K"
 #define FIREBASE_DOCKS_PATH "docks"
 
 // HX711 Configuration
@@ -45,6 +45,9 @@ This project implements a digital weight scale using an ESP32 microcontroller, H
 #define CALIBRATION_FACTOR -1000.0
 #define READINGS_PER_SAMPLE 5
 #define DELAY_BETWEEN_READINGS 100  // milliseconds
+
+// Weight Threshold for LED State
+#define WEIGHT_THRESHOLD 3.2  // kg
 ```
 
 **Functionality**:
@@ -54,6 +57,7 @@ This project implements a digital weight scale using an ESP32 microcontroller, H
 - Configures Firebase database URL and data path
 - Sets up pin definitions for HX711 connection
 - Defines calibration factor and timing parameters
+- Sets weight threshold (3.2 kg) for LED state control
 
 ### 2. Global Variables and Object Initialization
 
@@ -102,7 +106,35 @@ bool checkDockExists() {
 - Returns false if the ID doesn't exist in the database
 - Prints verification status to Serial monitor
 
-### 4. Firebase Data Transmission Function
+### 4. LED State Control Function
+
+```cpp
+void updateLedState(float weight_kg) {
+  // LED state logic: true if weight < 3.2kg, false if weight >= 3.2kg
+  bool led_state = (weight_kg < WEIGHT_THRESHOLD);
+
+  String path = String(FIREBASE_DOCKS_PATH) + "/" + String(FIREBASE_DOCK_ID) + "/led_state";
+
+  if (fb.setBool(path, led_state)) {
+    Serial.print("LED state updated to: ");
+    Serial.println(led_state ? "ON" : "OFF");
+  } else {
+    Serial.println("Failed to update LED state");
+  }
+}
+```
+
+**Functionality**:
+
+- Takes the current weight measurement as input
+- Determines LED state based on weight threshold:
+  - If weight < 3.2 kg: LED state = true (ON)
+  - If weight ≥ 3.2 kg: LED state = false (OFF)
+- Constructs Firebase path for the LED state
+- Updates the LED state in Firebase
+- Provides feedback about the update status
+
+### 5. Firebase Data Transmission Function
 
 ```cpp
 void sendWeightToFirebase(float weight_kg) {
@@ -120,6 +152,9 @@ void sendWeightToFirebase(float weight_kg) {
 
   if (fb.setFloat(path, weight_kg)) {
     Serial.println("Weight data sent to Firebase");
+
+    // Update LED state based on weight threshold
+    updateLedState(weight_kg);
   } else {
     Serial.println("Failed to send data to Firebase");
   }
@@ -133,9 +168,10 @@ void sendWeightToFirebase(float weight_kg) {
 - If dock doesn't exist, stops and reports error
 - Constructs the complete path for the weight data
 - Sends the weight value (in kg) to Firebase
+- Calls updateLedState() to update the LED state based on weight
 - Reports success or failure of data transmission
 
-### 5. Setup Function
+### 6. Setup Function
 
 ```cpp
 void setup() {
@@ -173,7 +209,7 @@ void setup() {
 - Tares the scale (sets to zero) at startup
 - Verifies Firebase dock ID exists at startup
 
-### 6. Main Loop Function
+### 7. Main Loop Function
 
 ```cpp
 void loop() {
@@ -225,7 +261,7 @@ void loop() {
   - 'v': Verify the dock ID in Firebase
 - Maintains a consistent delay between readings
 
-### 7. Calibration Mode Function
+### 8. Calibration Mode Function
 
 ```cpp
 void calibrationMode() {
@@ -298,9 +334,15 @@ The system uses the following Firebase database structure:
 
 ```
 /docks
-    /-ONINaRvlfmil9bk230u
+    /-OO0yqjgLrHVxyT2tr0K
         /weight: [float value in kg]
+        /led_state: [boolean value]
 ```
+
+The `led_state` value is automatically updated based on weight measurements:
+
+- When weight < 3.2 kg: `led_state` = true
+- When weight ≥ 3.2 kg: `led_state` = false
 
 ## Troubleshooting
 
